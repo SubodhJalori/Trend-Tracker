@@ -8,27 +8,21 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'EnsembleData token not configured' });
   }
 
-  const { endpoint, ...params } = req.query;
-  if (!endpoint) {
-    return res.status(400).json({ error: 'Missing endpoint parameter' });
+  // 'path' is the endpoint path e.g. /instagram/user/info
+  const { path, ...params } = req.query;
+  if (!path) {
+    return res.status(400).json({ error: 'Missing path parameter' });
   }
 
-  // Build query string with token injected server-side
+  // Inject token server-side — never exposed to browser
   const searchParams = new URLSearchParams({ ...params, token });
-  const url = `https://ensembledata.com/apis${endpoint}?${searchParams.toString()}`;
+  const url = `https://ensembledata.com/apis${path}?${searchParams.toString()}`;
 
   try {
-    const response = await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
-    });
-
+    const response = await fetch(url);
     const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json(data);
-    }
-
-    return res.status(200).json(data);
+    // Pass through whatever status EnsembleData returns
+    return res.status(response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
