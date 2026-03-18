@@ -197,13 +197,8 @@ export default function BrandIntel() {
   const [reelsError,     setReelsError]     = useState(null);
   const [hashError,      setHashError]      = useState(null);
 
-  const [searchMode, setSearchMode] = useState("keyword"); // "keyword" | "exact"
-
-  // ── Search bars ──
-  const handleBrandSelect = useCallback((username) => {
-    setUsernameInput(username);
-    lookupBrand(username);
-  }, [lookupBrand]);
+  const [reelSort,    setReelSort]    = useState("views");
+  const [searchMode,  setSearchMode]  = useState("keyword");
 
   // ── Brand lookup ─────────────────────────────────────────────
 
@@ -249,6 +244,12 @@ export default function BrandIntel() {
       .catch(err => setReelsError(err.message))
       .finally(() => setReelsLoading(false));
   }, [usernameInput]);
+
+  // ── handleBrandSelect — must come after lookupBrand ──────────
+  const handleBrandSelect = useCallback((username) => {
+    setUsernameInput(username);
+    lookupBrand(username);
+  }, [lookupBrand]);
 
   // ── Hashtag lookup ────────────────────────────────────────────
 
