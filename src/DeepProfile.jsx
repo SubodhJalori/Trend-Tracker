@@ -1,17 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import BrandSearch from "./BrandSearch.jsx";
-
-// ── Helpers ──────────────────────────────────────────────────────
-
-function fmt(n) {
-  if (n == null || isNaN(Number(n))) return "—";
-  n = Number(n);
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString();
-}
-
-function num(n) { return Number(n) || 0; }
+import { fmt, num, postStats, engRate } from "./stats.js";
 
 async function apifyRun(actor, input) {
   const res = await fetch("/api/instagram", {
@@ -159,6 +148,9 @@ function AskAnything({ profile, posts, insights, username }) {
     setLoading(true);
 
     try {
+      const askVids  = posts.filter(p => p.videoPlayCount != null || p.videoViewCount != null);
+      const askPosts = askVids.length > 0 ? askVids : posts;
+      const as       = postStats(askPosts);
       const context = `
 Instagram account: @${username}
 Full name: ${profile?.fullName ?? username}
@@ -169,9 +161,9 @@ Bio: ${profile?.biography ?? "N/A"}
 Category: ${profile?.businessCategoryName ?? profile?.category ?? "N/A"}
 Verified: ${profile?.verified ? "Yes" : "No"}
 Total posts analysed: ${posts.length}
-Avg video views: ${fmt(Math.round(posts.reduce((s,p) => s + num(p.videoPlayCount ?? p.videoViewCount), 0) / (posts.length || 1)))}
-Avg likes: ${fmt(Math.round(posts.reduce((s,p) => s + num(p.likesCount), 0) / (posts.length || 1)))}
-Avg comments: ${fmt(Math.round(posts.reduce((s,p) => s + num(p.commentsCount), 0) / (posts.length || 1)))}
+Median video views: ${fmt(as.medianViews)} (mean: ${fmt(as.meanViews)}${Number(as.viewSkew) > 2 ? ` — skewed ${as.viewSkew}x by outlier posts` : ""})
+Median likes: ${fmt(as.medianLikes)}
+Median comments: ${fmt(as.medianComments)}
 AI insights summary: ${JSON.stringify(insights ?? {})}
 Sample captions: ${posts.slice(0,5).map(p => p.caption ?? "").filter(Boolean).join(" | ")}
       `.trim();
@@ -327,9 +319,8 @@ export default function DeepProfile() {
 
       const followers   = num(prof.followersCount ?? prof.follower_count);
       const videos      = postList.filter(p => p.videoPlayCount != null || p.videoViewCount != null);
-      const avgViews    = videos.length ? Math.round(videos.reduce((s,p) => s + num(p.videoPlayCount ?? p.videoViewCount), 0) / videos.length) : 0;
-      const avgLikes    = postList.length ? Math.round(postList.reduce((s,p) => s + num(p.likesCount), 0) / postList.length) : 0;
-      const avgComments = postList.length ? Math.round(postList.reduce((s,p) => s + num(p.commentsCount), 0) / postList.length) : 0;
+      const allPosts    = videos.length > 0 ? videos : postList;
+      const s           = postStats(allPosts);
       const captions    = postList.slice(0, 10).map(p => p.caption ?? "").filter(Boolean).join("\n");
       const hashtags    = postList.flatMap(p => (p.hashtags ?? (p.caption ?? "").match(/#\w+/g) ?? [])).slice(0, 30).join(", ");
 
@@ -344,10 +335,10 @@ Followers: ${fmt(followers)}
 Following: ${fmt(prof.followsCount)}
 Total posts: ${fmt(prof.postsCount)}
 Posts analysed: ${postList.length}
-Avg video views: ${fmt(avgViews)}
-Avg likes/post: ${fmt(avgLikes)}
-Avg comments/post: ${fmt(avgComments)}
-Engagement rate: ${followers ? (((avgLikes + avgComments) / followers) * 100).toFixed(2) : 0}%
+Median video views: ${fmt(s.medianViews)} (mean: ${fmt(s.meanViews)}${Number(s.viewSkew) > 2 ? ` — SKEWED by outliers, skew ratio ${s.viewSkew}x` : ""})
+Median likes/post: ${fmt(s.medianLikes)} (mean: ${fmt(s.meanLikes)})
+Median comments/post: ${fmt(s.medianComments)}
+Engagement rate: ${followers ? (((s.medianLikes + s.medianComments) / followers) * 100).toFixed(2) : 0}%
 Sample captions: ${captions.slice(0, 800)}
 Top hashtags used: ${hashtags}
 
@@ -476,13 +467,13 @@ Respond with ONLY raw JSON. No markdown, no extra text:
         const category    = profile.businessCategoryName ?? profile.category ?? "";
         const avatar      = profile.profilePicUrl ?? null;
         const videos      = posts.filter(p => p.videoPlayCount != null || p.videoViewCount != null);
-        const avgViews    = videos.length ? Math.round(videos.reduce((s,p) => s + num(p.videoPlayCount ?? p.videoViewCount), 0) / videos.length) : 0;
-        const avgLikes    = posts.length  ? Math.round(posts.reduce((s,p) => s + num(p.likesCount), 0) / posts.length) : 0;
-        const avgComments = posts.length  ? Math.round(posts.reduce((s,p) => s + num(p.commentsCount), 0) / posts.length) : 0;
-        const er          = followers ? (((avgLikes + avgComments) / followers) * 100).toFixed(2) : "0";
+        const allPostsR   = videos.length > 0 ? videos : posts;
+        const rs          = postStats(allPostsR);
+        const er          = followers ? (((rs.medianLikes + rs.medianComments) / followers) * 100).toFixed(2) : "0";
         const gender      = insights.audience?.genderSplit ?? {};
         const ageGroups   = insights.audience?.ageGroups ?? [];
         const brandScore  = insights.brandScore ?? {};
+        const isSkewed    = Number(rs.viewSkew) > 2;
 
         return (
           <div style={{ animation: "fadeIn .3s ease" }}>
@@ -515,12 +506,22 @@ Respond with ONLY raw JSON. No markdown, no extra text:
             </div>
 
             {/* Quick stats */}
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
-              <InsightCard icon="👥" label="Followers"     value={fmt(followers)}   color="#a78bfa" />
-              <InsightCard icon="👁️" label="Avg Views"     value={fmt(avgViews)}    color="#ff8c42" sub="per reel" />
-              <InsightCard icon="❤️" label="Avg Likes"     value={fmt(avgLikes)}    color="#ff3b5c" sub="per post" />
-              <InsightCard icon="💬" label="Eng. Rate"     value={er + "%"}         color="#00d4a0" badge={Number(er) > 3 ? "Excellent" : Number(er) > 1 ? "Average" : "Low"} />
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: isSkewed ? "10px" : "20px" }}>
+              <InsightCard icon="👥" label="Followers"      value={fmt(followers)}        color="#a78bfa" />
+              <InsightCard icon="👁️" label="Median Views"   value={fmt(rs.medianViews)}   color="#ff8c42" sub="per reel (outliers removed)" />
+              <InsightCard icon="❤️" label="Median Likes"   value={fmt(rs.medianLikes)}   color="#ff3b5c" sub="per post" />
+              <InsightCard icon="💬" label="Eng. Rate"      value={er + "%"}              color="#00d4a0" badge={Number(er) > 3 ? "Excellent" : Number(er) > 1 ? "Average" : "Low"} />
             </div>
+
+            {/* Skew warning */}
+            {isSkewed && (
+              <div style={{ marginBottom: "20px", padding: "10px 14px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "10px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                <span style={{ fontSize: "16px", flexShrink: 0 }}>⚠️</span>
+                <p style={{ margin: 0, fontSize: "12px", color: "rgba(251,191,36,0.8)", lineHeight: 1.6 }}>
+                  <strong>Data skew detected ({rs.viewSkew}x).</strong> The mean view count ({fmt(rs.meanViews)}) is {rs.viewSkew}x higher than the median ({fmt(rs.medianViews)}), suggesting one or more viral or celebrity posts are inflating averages. Median is shown as it better reflects typical post performance.
+                </p>
+              </div>
+            )}
 
             {/* Insight tabs */}
             <div style={{ display: "flex", gap: "6px", marginBottom: "20px", overflowX: "auto" }}>

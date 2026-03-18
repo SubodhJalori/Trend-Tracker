@@ -1,20 +1,6 @@
 import { useState, useCallback } from "react";
 import BrandSearch from "./BrandSearch.jsx";
-
-// ── Helpers ──────────────────────────────────────────────────────
-
-function fmt(n) {
-  if (n == null || isNaN(Number(n))) return "—";
-  n = Number(n);
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString();
-}
-
-function engRate(followers, likes, comments) {
-  if (!followers) return "—";
-  return (((likes + comments) / followers) * 100).toFixed(2) + "%";
-}
+import { fmt, num, postStats, engRate } from "./stats.js";
 
 // All calls POST to /api/instagram which injects the Apify token server-side
 async function apifyRun(actor, input) {
@@ -289,13 +275,8 @@ export default function BrandIntel() {
 
   const videoReels  = reels.filter(r => r.videoPlayCount != null || r.videoViewCount != null || r.type === "Video");
   const allReels    = videoReels.length > 0 ? videoReels : reels;
-
-  const totalViews    = allReels.reduce((s, r) => s + (r.videoPlayCount ?? r.videoViewCount ?? 0), 0);
-  const totalLikes    = allReels.reduce((s, r) => s + (r.likesCount ?? 0), 0);
-  const totalComments = allReels.reduce((s, r) => s + (r.commentsCount ?? 0), 0);
-  const avgViews      = allReels.length ? Math.round(totalViews / allReels.length) : 0;
-  const avgLikes      = allReels.length ? Math.round(totalLikes / allReels.length) : 0;
-  const topReel       = [...allReels].sort((a, b) => (b.videoPlayCount ?? b.videoViewCount ?? 0) - (a.videoPlayCount ?? a.videoViewCount ?? 0))[0];
+  const stats       = postStats(allReels);
+  const topReel     = [...allReels].sort((a, b) => (num(b.videoPlayCount ?? b.videoViewCount)) - (num(a.videoPlayCount ?? a.videoViewCount)))[0];
 
   const sortedReels = [...allReels].sort((a, b) => {
     if (reelSort === "views")    return ((b.videoPlayCount ?? b.videoViewCount ?? 0) - (a.videoPlayCount ?? a.videoViewCount ?? 0));
@@ -449,9 +430,11 @@ export default function BrandIntel() {
                     <StatBox label="Following"         value={fmt(following)} />
                     <StatBox label="Posts"             value={fmt(postsCount)} />
                     {allReels.length > 0 && <>
-                      <StatBox label="Total Reel Views"  value={fmt(totalViews)}   color="#ff8c42" sub={`across ${allReels.length} reels`} />
-                      <StatBox label="Avg Views / Reel"  value={fmt(avgViews)}     color="#ff8c42" />
-                      <StatBox label="Avg Likes / Reel"  value={fmt(avgLikes)}     color="#00d4a0" sub={engRate(followers, totalLikes, totalComments) + " eng. rate"} />
+                      <StatBox label="Total Reel Views"    value={fmt(stats.totalViews)}   color="#ff8c42" sub={`${allReels.length} reels`} />
+                      <StatBox label="Median Views / Reel" value={fmt(stats.medianViews)} color="#ff8c42"
+                        sub={stats.viewSkew > 2 ? `⚠️ Avg ${fmt(stats.meanViews)} — skewed` : `Avg ${fmt(stats.meanViews)}`} />
+                      <StatBox label="Median Likes / Reel" value={fmt(stats.medianLikes)} color="#00d4a0"
+                        sub={engRate(followers, stats.totalLikes, stats.totalComments) + " eng."} />
                     </>}
                   </div>
 
@@ -510,7 +493,7 @@ export default function BrandIntel() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
                     <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
                       <strong style={{ color: "#fff" }}>{allReels.length}</strong> posts for <strong style={{ color: "#fff" }}>@{loadedUser}</strong>
-                      {totalViews > 0 && <> · <strong style={{ color: "#ff3b5c" }}>{fmt(totalViews)}</strong> total views</>}
+                      {stats.totalViews > 0 && <> · <strong style={{ color: "#ff3b5c" }}>{fmt(stats.totalViews)}</strong> total · <strong style={{ color: "#ff8c42" }}>{fmt(stats.medianViews)}</strong> median views</>}
                     </p>
                     <div style={{ display: "flex", gap: "5px" }}>
                       {["views", "likes", "comments", "date"].map(s => (

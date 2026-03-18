@@ -1,29 +1,8 @@
 import { useState, useCallback } from "react";
 import BrandSearch from "./BrandSearch.jsx";
+import { fmt, num, postStats, engRate, engRateNum } from "./stats.js";
 
-// ── Helpers ──────────────────────────────────────────────────────
-
-function fmt(n) {
-  if (n == null || isNaN(Number(n))) return "—";
-  n = Number(n);
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString();
-}
-
-function num(n) {
-  return Number(n) || 0;
-}
-
-function engRate(followers, likes, comments) {
-  if (!followers) return 0;
-  return Number((((likes + comments) / followers) * 100).toFixed(2));
-}
-
-function engRateStr(followers, likes, comments) {
-  const r = engRate(followers, likes, comments);
-  return r === 0 ? "—" : r.toFixed(2) + "%";
-}
+// ── API ───────────────────────────────────────────────────────────
 
 async function apifyRun(actor, input) {
   const res = await fetch("/api/instagram", {
@@ -37,21 +16,38 @@ async function apifyRun(actor, input) {
   return data;
 }
 
+function engRateStr(followers, likes, comments) {
+  const r = engRateNum(followers, likes, comments);
+  return r === 0 ? "—" : r.toFixed(2) + "%";
+}
+
+// ── extractStats: uses median not mean to avoid celebrity-post skew ──
+
 function extractStats(profile, posts) {
   const followers  = num(profile?.followersCount ?? profile?.follower_count);
   const following  = num(profile?.followsCount ?? profile?.following_count);
   const postsCount = num(profile?.postsCount ?? profile?.mediaCount);
   const videos     = posts.filter(p => p.videoPlayCount != null || p.videoViewCount != null || p.type === "Video");
   const allPosts   = videos.length > 0 ? videos : posts;
-  const totalViews    = allPosts.reduce((s, p) => s + num(p.videoPlayCount ?? p.videoViewCount), 0);
-  const totalLikes    = allPosts.reduce((s, p) => s + num(p.likesCount), 0);
-  const totalComments = allPosts.reduce((s, p) => s + num(p.commentsCount), 0);
-  const avgViews      = allPosts.length ? Math.round(totalViews / allPosts.length) : 0;
-  const avgLikes      = allPosts.length ? Math.round(totalLikes / allPosts.length) : 0;
-  const avgComments   = allPosts.length ? Math.round(totalComments / allPosts.length) : 0;
-  const topPost       = [...allPosts].sort((a, b) => num(b.videoPlayCount ?? b.videoViewCount) - num(a.videoPlayCount ?? a.videoViewCount))[0];
-  const er            = engRate(followers, totalLikes, totalComments);
-  return { followers, following, postsCount, totalViews, totalLikes, totalComments, avgViews, avgLikes, avgComments, topPost, er, postsAnalysed: allPosts.length };
+  const s          = postStats(allPosts);
+  const topPost    = [...allPosts].sort((a, b) => num(b.videoPlayCount ?? b.videoViewCount) - num(a.videoPlayCount ?? a.videoViewCount))[0];
+  const er         = engRateNum(followers, s.totalLikes, s.totalComments);
+  return {
+    followers, following, postsCount,
+    totalViews:    s.totalViews,
+    totalLikes:    s.totalLikes,
+    totalComments: s.totalComments,
+    medianViews:   s.medianViews,
+    medianLikes:   s.medianLikes,
+    medianComments:s.medianComments,
+    meanViews:     s.meanViews,
+    viewSkew:      s.viewSkew,
+    avgViews:      s.medianViews, // keep compat alias → median
+    avgLikes:      s.medianLikes,
+    avgComments:   s.medianComments,
+    topPost, er,
+    postsAnalysed: allPosts.length,
+  };
 }
 
 // ── Bar ───────────────────────────────────────────────────────────
@@ -194,7 +190,7 @@ function BrandSlot({ index, color, brand, onAdd, onRemove }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "8px" }}>
               {[
                 { label: "Followers", value: fmt(brand.stats?.followers) },
-                { label: "Avg Views", value: fmt(brand.stats?.avgViews) },
+                { label: "Median Views", value: fmt(brand.stats?.avgViews) },
                 { label: "Eng. Rate", value: brand.stats ? engRateStr(brand.stats.followers, brand.stats.totalLikes, brand.stats.totalComments) : "—" },
                 { label: "Posts", value: fmt(brand.stats?.postsCount) },
               ].map(s => (
@@ -425,7 +421,7 @@ export default function CompareBrands() {
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "24px" }}>
                 {[
                   { label: "Most Followers",    val: followerVals,  icon: "👥" },
-                  { label: "Highest Avg Views", val: avgViewVals,   icon: "👁️" },
+                  { label: "Highest Median Views", val: avgViewVals,   icon: "👁️" },
                   { label: "Best Eng. Rate",    val: erVals,        icon: "💬" },
                   { label: "Most Posts",        val: postCountVals, icon: "📸" },
                 ].map(({ label, val, icon }) => {
@@ -478,9 +474,9 @@ export default function CompareBrands() {
                       { label: "Total Posts",        vals: postCountVals.map(fmt) },
                       { label: "Posts Analysed",     vals: readyBrands.map(b => b.stats.postsAnalysed) },
                       { label: "Total Reel Views",   vals: totalViewVals.map(fmt) },
-                      { label: "Avg Views / Post",   vals: avgViewVals.map(fmt) },
-                      { label: "Avg Likes / Post",   vals: avgLikeVals.map(fmt) },
-                      { label: "Avg Comments / Post",vals: readyBrands.map(b => fmt(b.stats.avgComments)) },
+                      { label: "Median Views / Post",   vals: avgViewVals.map(fmt) },
+                      { label: "Median Likes / Post",   vals: avgLikeVals.map(fmt) },
+                      { label: "Median Comments / Post",vals: readyBrands.map(b => fmt(b.stats.avgComments)) },
                       { label: "Engagement Rate",    vals: readyBrands.map(b => engRateStr(b.stats.followers, b.stats.totalLikes, b.stats.totalComments)) },
                     ].map((row, ri) => {
                       // Highlight winner cell
@@ -545,9 +541,9 @@ export default function CompareBrands() {
                       <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginBottom: "14px" }}>engagement rate</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                         {[
-                          { label: "Avg Likes",    val: fmt(b.stats.avgLikes) },
-                          { label: "Avg Comments", val: fmt(b.stats.avgComments) },
-                          { label: "Avg Views",    val: fmt(b.stats.avgViews) },
+                          { label: "Median Likes",    val: fmt(b.stats.avgLikes) },
+                          { label: "Median Comments", val: fmt(b.stats.avgComments) },
+                          { label: "Median Views",    val: fmt(b.stats.avgViews) },
                         ].map(s => (
                           <div key={s.label} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
                             <span style={{ color: "rgba(255,255,255,0.35)" }}>{s.label}</span>
