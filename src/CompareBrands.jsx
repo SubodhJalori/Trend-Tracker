@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import BrandSearch from "./BrandSearch.jsx";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -152,6 +153,7 @@ const SLOT_COLORS = ["#ff3b5c", "#63b3ed", "#a78bfa", "#34d399"];
 const PRESETS     = ["traya_health", "mamaearth", "nykaabeauty", "myglamm", "mcaffeine", "plumgoodness", "beardo_official", "thewholesome_co"];
 
 function BrandSlot({ index, color, brand, onAdd, onRemove }) {
+  const [mode,  setMode]  = useState("keyword"); // "keyword" | "exact"
   const [input, setInput] = useState("");
 
   if (brand) {
@@ -210,47 +212,73 @@ function BrandSlot({ index, color, brand, onAdd, onRemove }) {
 
   return (
     <div style={{
-      flex: 1, minWidth: "160px",
+      flex: 1, minWidth: "220px",
       background: "rgba(255,255,255,0.025)",
       border: `1px dashed ${color}44`,
       borderRadius: "14px", padding: "14px 16px",
       display: "flex", flexDirection: "column", gap: "10px",
     }}>
-      <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", fontWeight: 600 }}>Brand {index + 1}</div>
-      <div style={{ display: "flex", gap: "6px" }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && input.trim() && onAdd(index, input.trim().replace(/^@/, ""))}
-          placeholder="@username"
-          style={{
-            flex: 1, background: "rgba(255,255,255,0.05)", border: `1px solid ${color}33`,
-            borderRadius: "8px", padding: "7px 10px", color: "#fff", fontSize: "12px",
-            fontFamily: "inherit",
-          }}
-        />
-        <button
-          onClick={() => input.trim() && onAdd(index, input.trim().replace(/^@/, ""))}
-          disabled={!input.trim()}
-          style={{
-            padding: "7px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 700,
-            cursor: input.trim() ? "pointer" : "not-allowed", fontFamily: "inherit",
-            background: `${color}20`, border: `1px solid ${color}44`, color,
-          }}
-        >+</button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", fontWeight: 600 }}>Brand {index + 1}</div>
+        <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", borderRadius: "6px", padding: "2px", gap: "2px" }}>
+          {[{ id: "keyword", label: "🔍" }, { id: "exact", label: "@" }].map(m => (
+            <button key={m.id} onClick={() => setMode(m.id)} style={{
+              padding: "3px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit", border: "none",
+              background: mode === m.id ? `${color}25` : "transparent",
+              color: mode === m.id ? color : "rgba(255,255,255,0.3)",
+            }}>{m.label}</button>
+          ))}
+        </div>
       </div>
+
+      {mode === "keyword" ? (
+        <BrandSearch
+          onSelect={(username) => onAdd(index, username)}
+          color={color}
+          placeholder='e.g. "hair care india"…'
+          selectedUsernames={[]}
+        />
+      ) : (
+        <div style={{ display: "flex", gap: "6px" }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && input.trim() && onAdd(index, input.trim().replace(/^@/, ""))}
+            placeholder="@username"
+            style={{
+              flex: 1, background: "rgba(255,255,255,0.05)", border: `1px solid ${color}33`,
+              borderRadius: "8px", padding: "7px 10px", color: "#fff", fontSize: "12px",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={() => input.trim() && onAdd(index, input.trim().replace(/^@/, ""))}
+            disabled={!input.trim()}
+            style={{
+              padding: "7px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 700,
+              cursor: input.trim() ? "pointer" : "not-allowed", fontFamily: "inherit",
+              background: `${color}20`, border: `1px solid ${color}44`, color,
+            }}
+          >+</button>
+        </div>
+      )}
+
       {/* Quick presets */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-        {PRESETS.slice(0, 4).map(p => (
-          <button key={p} onClick={() => onAdd(index, p)} style={{
-            fontSize: "10px", padding: "3px 8px", borderRadius: "20px", cursor: "pointer",
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-            color: "rgba(255,255,255,0.35)", fontFamily: "inherit",
-          }}
-            onMouseEnter={e => { e.currentTarget.style.color = color; e.currentTarget.style.borderColor = `${color}44`; }}
-            onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.35)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
-          >{p.replace(/_/g, " ")}</button>
-        ))}
+      <div>
+        <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.2)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "5px" }}>Quick add</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+          {PRESETS.slice(0, 4).map(p => (
+            <button key={p} onClick={() => onAdd(index, p)} style={{
+              fontSize: "10px", padding: "3px 8px", borderRadius: "20px", cursor: "pointer",
+              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.35)", fontFamily: "inherit",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.color = color; e.currentTarget.style.borderColor = `${color}44`; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.35)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+            >{p.replace(/_/g, " ")}</button>
+          ))}
+        </div>
       </div>
     </div>
   );

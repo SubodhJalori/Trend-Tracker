@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import BrandSearch from "./BrandSearch.jsx";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -196,7 +197,13 @@ export default function BrandIntel() {
   const [reelsError,     setReelsError]     = useState(null);
   const [hashError,      setHashError]      = useState(null);
 
-  const [reelSort, setReelSort] = useState("views");
+  const [searchMode, setSearchMode] = useState("keyword"); // "keyword" | "exact"
+
+  // ── Search bars ──
+  const handleBrandSelect = useCallback((username) => {
+    setUsernameInput(username);
+    lookupBrand(username);
+  }, [lookupBrand]);
 
   // ── Brand lookup ─────────────────────────────────────────────
 
@@ -306,32 +313,56 @@ export default function BrandIntel() {
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
 
+      {/* ── Search mode toggle ── */}
+      <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+        {[{ id: "keyword", label: "🔍 Search by keyword" }, { id: "exact", label: "@ Exact username" }].map(m => (
+          <button key={m.id} onClick={() => setSearchMode(m.id)} style={{
+            padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit", transition: "all .15s",
+            background: searchMode === m.id ? "rgba(255,59,92,0.15)" : "rgba(255,255,255,0.05)",
+            border: `1px solid ${searchMode === m.id ? "rgba(255,59,92,0.35)" : "rgba(255,255,255,0.08)"}`,
+            color: searchMode === m.id ? "#ff3b5c" : "rgba(255,255,255,0.4)",
+          }}>{m.label}</button>
+        ))}
+      </div>
+
       {/* ── Search bars ── */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
 
-        {/* Username */}
-        <div style={{ flex: 2, minWidth: "220px", display: "flex", gap: "8px" }}>
-          <div style={{
-            flex: 1, display: "flex", alignItems: "center", gap: "8px",
-            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "10px", padding: "10px 14px",
-          }}>
-            <span style={{ opacity: 0.45, fontSize: "15px" }}>👤</span>
-            <input
-              value={usernameInput}
-              onChange={e => setUsernameInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && lookupBrand()}
-              placeholder="Instagram username e.g. traya_health"
-              style={{ flex: 1, background: "none", border: "none", color: "#fff", fontSize: "13px", fontFamily: "inherit" }}
+        {/* Username / keyword search */}
+        <div style={{ flex: 2, minWidth: "220px" }}>
+          {searchMode === "keyword" ? (
+            <BrandSearch
+              onSelect={handleBrandSelect}
+              selectedUsernames={loadedUser ? [loadedUser] : []}
+              color="#ff3b5c"
+              placeholder='Search by keyword e.g. "hair care india", "skincare brand"…'
             />
-          </div>
-          <button onClick={() => lookupBrand()} disabled={profileLoading || !usernameInput.trim()} style={{
-            padding: "10px 18px", borderRadius: "10px", fontSize: "12px", fontWeight: 700,
-            cursor: profileLoading || !usernameInput.trim() ? "not-allowed" : "pointer", fontFamily: "inherit",
-            background: "rgba(255,59,92,0.15)", border: "1px solid rgba(255,59,92,0.3)",
-            color: usernameInput.trim() ? "#ff3b5c" : "rgba(255,255,255,0.2)", whiteSpace: "nowrap",
-            transition: "all .15s",
-          }}>{profileLoading ? "Looking up…" : "Look up"}</button>
+          ) : (
+            <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{
+                flex: 1, display: "flex", alignItems: "center", gap: "8px",
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "10px", padding: "10px 14px",
+              }}>
+                <span style={{ opacity: 0.45, fontSize: "15px" }}>👤</span>
+                <input
+                  value={usernameInput}
+                  onChange={e => setUsernameInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && lookupBrand()}
+                  placeholder="e.g. traya_health"
+                  style={{ flex: 1, background: "none", border: "none", color: "#fff", fontSize: "13px", fontFamily: "inherit" }}
+                />
+              </div>
+              <button onClick={() => lookupBrand()} disabled={profileLoading || !usernameInput.trim()} style={{
+                padding: "10px 18px", borderRadius: "10px", fontSize: "12px", fontWeight: 700,
+                cursor: profileLoading || !usernameInput.trim() ? "not-allowed" : "pointer", fontFamily: "inherit",
+                background: "rgba(255,59,92,0.15)", border: "1px solid rgba(255,59,92,0.3)",
+                color: usernameInput.trim() ? "#ff3b5c" : "rgba(255,255,255,0.2)", whiteSpace: "nowrap",
+                transition: "all .15s",
+              }}>{profileLoading ? "Looking up…" : "Look up"}</button>
+            </div>
+          )}
         </div>
 
         {/* Hashtag */}
