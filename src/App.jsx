@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import BrandIntel from "./BrandIntel.jsx";
 import CompareBrands from "./CompareBrands.jsx";
+import DeepProfile from "./DeepProfile.jsx";
 
 // ── Constants ────────────────────────────────────────────────────
 
@@ -965,7 +966,7 @@ export default function TrendTracker() {
               </h1>
             </div>
             <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: "10px", padding: "3px", gap: "2px" }}>
-              {[{ id: "tracker", label: "📊 Tracker" }, { id: "search", label: "🔍 Search" }, { id: "brand", label: "📈 Brand Intel" }, { id: "compare", label: "⚡ Compare" }].map(m => (
+              {[{ id: "tracker", label: "📊 Tracker" }, { id: "search", label: "🔍 Search" }, { id: "brand", label: "📈 Brand Intel" }, { id: "compare", label: "⚡ Compare" }, { id: "deep", label: "🔬 Deep Profile" }].map(m => (
                 <button key={m.id} onClick={() => setMode(m.id)} style={{
                   padding: "7px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 600,
                   cursor: "pointer", fontFamily: "inherit", transition: "all .15s",
@@ -1082,6 +1083,9 @@ export default function TrendTracker() {
             : !error && <div style={{ textAlign: "center", padding: "60px 20px", color: "rgba(255,255,255,0.18)", fontSize: "13px" }}>Click <strong style={{ color: "rgba(255,255,255,0.28)" }}>↻ Refresh</strong> to load trends.</div>
           }
         </>)}
+
+        {/* DEEP PROFILE MODE */}
+        {mode === "deep" && <DeepProfile />}
 
         {/* COMPARE MODE */}
         {mode === "compare" && <CompareBrands />}
